@@ -16,7 +16,7 @@
     "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/echo"
   },
   "ls": {
-    "version": "1.0",
+    "version": "1.3",
     "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/ls"
   },
   "nano": {
