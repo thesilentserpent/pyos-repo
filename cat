@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+import os, sys
+from pathlib import Path
+SIMOS_ROOT = Path(os.environ.get('SIMOS_ROOT', '.')).resolve()
+SIMOS_CWD = os.environ.get('SIMOS_CWD', '/')
+
+def real_path(virtual_path: str, cwd_virtual: str):
+    if virtual_path.startswith('/'):
+        v = Path(virtual_path)
+    else:
+        v = Path(cwd_virtual) / virtual_path
+    v = v.resolve()
+    rel = Path(*[p for p in v.parts if p != '/'])
+    return (SIMOS_ROOT / rel).resolve()
+
+if len(sys.argv) < 2:
+    print('cat: missing file')
+    sys.exit(1)
+rp = real_path(sys.argv[1], SIMOS_CWD)
+if not rp.exists() or not rp.is_file():
+    print('no such file')
+    sys.exit(1)
+print(rp.read_text())

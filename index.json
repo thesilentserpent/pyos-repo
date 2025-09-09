@@ -2,5 +2,45 @@
   "hello": {
     "version": "1.0",
     "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/hello"
+  },
+  "bash": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/bash"
+  },
+  "cat": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/cat"
+  },
+  "echo": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/echo"
+  },
+  "ls": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/ls"
+  },
+  "nano": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/nano"
+  },
+  "pkg": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/pkg"
+  },
+  "rm": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/rm"
+  },
+  "touch": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/touch"
+  },
+  "mkdir": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/mkdir"
+  },
+  "pwd": {
+    "version": "1.0",
+    "url": "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/pwd"
   }
 }

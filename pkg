@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""
+pkg - SimOS Package Manager
+Supports:
+  pkg update        # fetch latest package index
+  pkg search        # list available packages
+  pkg install <pkg> # install a package
+  pkg list          # list installed packages
+  pkg upgrade       # upgrade all installed packages
+"""
+
+import os
+import sys
+import json
+import urllib.request
+from pathlib import Path
+
+SIMOS_ROOT = Path(os.environ.get('SIMOS_ROOT', '.')).resolve()
+BIN_DIR = SIMOS_ROOT / "usr/bin"
+VAR_DIR = SIMOS_ROOT / "var/lib/pkg"
+INDEX_FILE = VAR_DIR / "index.json"
+INSTALLED_FILE = VAR_DIR / "installed.json"
+
+REPO_INDEX = "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/index.json"
+
+def ensure_dirs():
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    VAR_DIR.mkdir(parents=True, exist_ok=True)
+
+def load_json(path):
+    if path.exists():
+        return json.loads(path.read_text())
+    return {}
+
+def save_json(path, data):
+    path.write_text(json.dumps(data, indent=2))
+
+def pkg_update():
+    print("Updating package index...")
+    try:
+        with urllib.request.urlopen(REPO_INDEX) as r:
+            data = r.read().decode()
+        INDEX_FILE.write_text(data)
+        print("Package index updated.")
+    except Exception as e:
+        print(f"Failed to update index: {e}")
+
+def pkg_search():
+    if not INDEX_FILE.exists():
+        print("No index found. Run: pkg update")
+        return
+    data = load_json(INDEX_FILE)
+    print("Available packages:")
+    for name, meta in data.items():
+        print(f"  {name} - v{meta.get('version', '?')}")
+
+def install_package(name):
+    index = load_json(INDEX_FILE)
+    if name not in index:
+        print(f"No such package: {name}")
+        return
+    url = index[name]["url"]
+    version = index[name].get("version", "unknown")
+    dest = BIN_DIR / name
+
+    print(f"Downloading {name} (v{version}) from {url}...")
+    try:
+        with urllib.request.urlopen(url) as r:
+            data = r.read()
+        dest.write_bytes(data)
+        dest.chmod(0o755)
+        print(f"Installed {name} to {dest}")
+        installed = load_json(INSTALLED_FILE)
+        installed[name] = version
+        save_json(INSTALLED_FILE, installed)
+    except Exception as e:
+        print(f"Failed to install {name}: {e}")
+
+def pkg_install(name):
+    if not INDEX_FILE.exists():
+        print("No index found. Run: pkg update")
+        return
+    install_package(name)
+
+def pkg_list():
+    installed = load_json(INSTALLED_FILE)
+    if not installed:
+        print("No packages installed.")
+        return
+    print("Installed packages:")
+    for name, ver in installed.items():
+        print(f"  {name} - v{ver}")
+
+def pkg_upgrade():
+    if not INDEX_FILE.exists():
+        print("No index found. Run: pkg update")
+        return
+    index = load_json(INDEX_FILE)
+    installed = load_json(INSTALLED_FILE)
+    if not installed:
+        print("No packages installed.")
+        return
+    for name, current_ver in installed.items():
+        if name in index:
+            new_ver = index[name].get("version", current_ver)
+            if new_ver != current_ver:
+                print(f"Upgrading {name} from v{current_ver} to v{new_ver}...")
+                install_package(name)
+            else:
+                print(f"{name} is up to date (v{current_ver})")
+        else:
+            print(f"{name} is not in the index (skipping)")
+
+def main():
+    ensure_dirs()
+    if len(sys.argv) < 2:
+        print("Usage: pkg update|search|install|list|upgrade")
+        return 1
+    cmd = sys.argv[1]
+    if cmd == "update":
+        pkg_update()
+    elif cmd == "search":
+        pkg_search()
+    elif cmd == "install":
+        if len(sys.argv) < 3:
+            print("Usage: pkg install <name>")
+            return 1
+        pkg_install(sys.argv[2])
+    elif cmd == "list":
+        pkg_list()
+    elif cmd == "upgrade":
+        pkg_upgrade()
+    else:
+        print("Unknown command:", cmd)
+        return 1
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

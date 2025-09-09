@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+import os, sys
+from pathlib import Path
+SIMOS_ROOT = Path(os.environ.get('SIMOS_ROOT', '.')).resolve()
+SIMOS_CWD = os.environ.get('SIMOS_CWD', '/')
+if len(sys.argv) < 2:
+    print()
+    sys.exit(0)
+# support: echo text > file  (the caller shell usually handles redirection)
+print(' '.join(sys.argv[1:]))
