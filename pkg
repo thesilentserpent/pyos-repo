@@ -1,12 +1,27 @@
 #!/usr/bin/env python3
 """
 pkg - SimOS Package Manager
-Supports:
-  pkg update        # fetch latest package index
-  pkg search        # list available packages
-  pkg install <pkg> # install a package
-  pkg list          # list installed packages
-  pkg upgrade       # upgrade all installed packages
+
+Commands:
+  pkg update                # Fetch latest package index
+  pkg search                # List available packages
+  pkg install <pkg> [...]   # Install one or more packages
+  pkg remove <pkg> [...]    # Remove package (keep configs)
+  pkg purge <pkg> [...]     # Completely remove package (binary + configs)
+  pkg list                  # List installed packages
+  pkg upgrade               # Upgrade all installed packages
+  pkg info <pkg>            # Show details of a package
+  pkg help                  # Show help
+
+Examples:
+  pkg update
+  pkg search
+  pkg install bash ls nano
+  pkg remove nano
+  pkg purge nano
+  pkg info nano
+  pkg list
+  pkg upgrade
 """
 
 import os
@@ -15,13 +30,30 @@ import json
 import urllib.request
 from pathlib import Path
 
-SIMOS_ROOT = Path(os.environ.get('SIMOS_ROOT', '.')).resolve()
+# Colors for CLI
+GREEN = "\033[92m"
+RED = "\033[91m"
+CYAN = "\033[96m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
+
+SIMOS_ROOT = Path(os.environ.get("SIMOS_ROOT", ".")).resolve()
 BIN_DIR = SIMOS_ROOT / "usr/bin"
 VAR_DIR = SIMOS_ROOT / "var/lib/pkg"
+ETC_DIR = SIMOS_ROOT / "etc"
 INDEX_FILE = VAR_DIR / "index.json"
 INSTALLED_FILE = VAR_DIR / "installed.json"
 
 REPO_INDEX = "https://raw.githubusercontent.com/thesilentserpent/pyos-repo/refs/heads/main/index.json"
+
+def info_msg(msg):
+    print(f"{CYAN}[*]{RESET} {msg}")
+
+def success(msg):
+    print(f"{GREEN}[✓]{RESET} {msg}")
+
+def error(msg):
+    print(f"{RED}[✗]{RESET} {msg}")
 
 def ensure_dirs():
     BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,103 +67,179 @@ def load_json(path):
 def save_json(path, data):
     path.write_text(json.dumps(data, indent=2))
 
+def pkg_help():
+    print(__doc__)
+
 def pkg_update():
-    print("Updating package index...")
+    info_msg("Updating package index...")
     try:
         with urllib.request.urlopen(REPO_INDEX) as r:
             data = r.read().decode()
         INDEX_FILE.write_text(data)
-        print("Package index updated.")
+        success("Package index updated.")
     except Exception as e:
-        print(f"Failed to update index: {e}")
+        error(f"Failed to update index: {e}")
 
 def pkg_search():
     if not INDEX_FILE.exists():
-        print("No index found. Run: pkg update")
+        error("No index found. Run: pkg update")
         return
     data = load_json(INDEX_FILE)
-    print("Available packages:")
+    print(f"{YELLOW}Available packages:{RESET}")
     for name, meta in data.items():
-        print(f"  {name} - v{meta.get('version', '?')}")
+        print(f"  {GREEN}{name}{RESET} - v{meta.get('version', '?')}")
 
 def install_package(name):
     index = load_json(INDEX_FILE)
     if name not in index:
-        print(f"No such package: {name}")
+        error(f"No such package: {name}")
         return
     url = index[name]["url"]
     version = index[name].get("version", "unknown")
     dest = BIN_DIR / name
 
-    print(f"Downloading {name} (v{version}) from {url}...")
+    info_msg(f"Downloading {name} (v{version}) from {url}...")
     try:
         with urllib.request.urlopen(url) as r:
             data = r.read()
         dest.write_bytes(data)
         dest.chmod(0o755)
-        print(f"Installed {name} to {dest}")
+        success(f"Installed {name} to {dest}")
         installed = load_json(INSTALLED_FILE)
         installed[name] = version
         save_json(INSTALLED_FILE, installed)
     except Exception as e:
-        print(f"Failed to install {name}: {e}")
+        error(f"Failed to install {name}: {e}")
 
-def pkg_install(name):
+def pkg_install(names):
     if not INDEX_FILE.exists():
-        print("No index found. Run: pkg update")
+        error("No index found. Run: pkg update")
         return
-    install_package(name)
+    for name in names:
+        install_package(name)
 
 def pkg_list():
     installed = load_json(INSTALLED_FILE)
     if not installed:
-        print("No packages installed.")
+        print(f"{YELLOW}No packages installed.{RESET}")
         return
-    print("Installed packages:")
+    print(f"{YELLOW}Installed packages:{RESET}")
     for name, ver in installed.items():
-        print(f"  {name} - v{ver}")
+        print(f"  {GREEN}{name}{RESET} - v{ver}")
 
 def pkg_upgrade():
     if not INDEX_FILE.exists():
-        print("No index found. Run: pkg update")
+        error("No index found. Run: pkg update")
         return
     index = load_json(INDEX_FILE)
     installed = load_json(INSTALLED_FILE)
     if not installed:
-        print("No packages installed.")
+        print(f"{YELLOW}No packages installed.{RESET}")
         return
     for name, current_ver in installed.items():
         if name in index:
             new_ver = index[name].get("version", current_ver)
             if new_ver != current_ver:
-                print(f"Upgrading {name} from v{current_ver} to v{new_ver}...")
+                info_msg(f"Upgrading {name} from v{current_ver} to v{new_ver}...")
                 install_package(name)
             else:
                 print(f"{name} is up to date (v{current_ver})")
         else:
             print(f"{name} is not in the index (skipping)")
 
+def remove_package(name, purge=False):
+    installed = load_json(INSTALLED_FILE)
+    if name not in installed:
+        error(f"Package not installed: {name}")
+        return
+    bin_path = BIN_DIR / name
+    if bin_path.exists():
+        bin_path.unlink()
+        success(f"Removed binary: {bin_path}")
+    else:
+        info_msg(f"No binary found for {name}")
+
+    if purge:
+        conf_path = ETC_DIR / name
+        if conf_path.exists():
+            for root, dirs, files in os.walk(conf_path, topdown=False):
+                for f in files:
+                    (Path(root) / f).unlink()
+                for d in dirs:
+                    (Path(root) / d).rmdir()
+            conf_path.rmdir()
+            success(f"Purged config directory: {conf_path}")
+        else:
+            info_msg("No config found to purge.")
+
+    del installed[name]
+    save_json(INSTALLED_FILE, installed)
+    success(f"Package {name} removed{' (purged)' if purge else ''}.")
+
+def pkg_remove(names, purge=False):
+    for name in names:
+        remove_package(name, purge)
+
+def pkg_info(name):
+    index = load_json(INDEX_FILE)
+    installed = load_json(INSTALLED_FILE)
+
+    if name not in index and name not in installed:
+        error(f"No information available for: {name}")
+        return
+
+    print(f"{YELLOW}Package Info:{RESET}")
+    print(f"  Name: {GREEN}{name}{RESET}")
+    if name in index:
+        print(f"  Version: {index[name].get('version', '?')}")
+        print(f"  Source: {index[name].get('url', 'unknown')}")
+    else:
+        print("  Version: unknown (not in index)")
+        print("  Source: unknown")
+
+    if name in installed:
+        print(f"  Installed: {GREEN}Yes (v{installed[name]}){RESET}")
+    else:
+        print(f"  Installed: {RED}No{RESET}")
+
 def main():
     ensure_dirs()
     if len(sys.argv) < 2:
-        print("Usage: pkg update|search|install|list|upgrade")
+        pkg_help()
         return 1
     cmd = sys.argv[1]
-    if cmd == "update":
+    if cmd in ["help", "-h", "--help"]:
+        pkg_help()
+    elif cmd == "update":
         pkg_update()
     elif cmd == "search":
         pkg_search()
-    elif cmd == "install":
+    elif cmd in ["install", "i"]:
         if len(sys.argv) < 3:
-            print("Usage: pkg install <name>")
+            error("Usage: pkg install <name> [...]")
             return 1
-        pkg_install(sys.argv[2])
+        pkg_install(sys.argv[2:])
     elif cmd == "list":
         pkg_list()
     elif cmd == "upgrade":
         pkg_upgrade()
+    elif cmd == "remove":
+        if len(sys.argv) < 3:
+            error("Usage: pkg remove <name> [...]")
+            return 1
+        pkg_remove(sys.argv[2:], purge=False)
+    elif cmd == "purge":
+        if len(sys.argv) < 3:
+            error("Usage: pkg purge <name> [...]")
+            return 1
+        pkg_remove(sys.argv[2:], purge=True)
+    elif cmd == "info":
+        if len(sys.argv) < 3:
+            error("Usage: pkg info <name>")
+            return 1
+        pkg_info(sys.argv[2])
     else:
-        print("Unknown command:", cmd)
+        error(f"Unknown command: {cmd}")
         return 1
     return 0
 
